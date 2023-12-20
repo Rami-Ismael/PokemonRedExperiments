@@ -1,3 +1,4 @@
+import os
 from os.path import exists
 from pathlib import Path
 import uuid
@@ -7,6 +8,7 @@ from stable_baselines3.common import env_checker
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.callbacks import CheckpointCallback
+from rich import print
 
 def make_env(rank, env_conf, seed=0):
     """
@@ -30,16 +32,17 @@ if __name__ == '__main__':
 
     env_config = {
                 'headless': False, 'save_final_state': True, 'early_stop': False,
-                'action_freq': 24, 'init_state': '../has_pokedex_nballs.state', 'max_steps': ep_length, 
+                'action_freq': 24, 'init_state': 'has_pokedex_nballs.state', 'max_steps': ep_length, 
                 'print_rewards': True, 'save_video': False, 'fast_video': True, 'session_path': sess_path,
-                'gb_path': '../PokemonRed.gb', 'debug': False, 'sim_frame_dist': 2_000_000.0, 'extra_buttons': True
+                'gb_path': 'PokemonRed.gb', 'debug': False, 'sim_frame_dist': 2_000_000.0, 'extra_buttons': True
             }
     
     num_cpu = 1 #64 #46  # Also sets the number of episodes per training iteration
     env = make_env(0, env_config)() #SubprocVecEnv([make_env(i, env_config) for i in range(num_cpu)])
+    print(os.getcwd())
     
     #env_checker.check_env(env)
-    file_name = 'session_4da05e87_main_good/poke_439746560_steps'
+    file_name = 'baselines/session_4da05e87_main_good/poke_439746560_steps'
     
     print('\nloading checkpoint')
     model = PPO.load(file_name, env=env, custom_objects={'lr_schedule': 0, 'clip_range': 0})

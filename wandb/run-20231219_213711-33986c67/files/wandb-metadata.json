@@ -1,0 +1,80 @@
+{
+    "os": "Linux-6.2.15-100.fc36.x86_64-x86_64-with-glibc2.35",
+    "python": "3.10.13",
+    "heartbeatAt": "2023-12-20T03:37:11.933571",
+    "startedAt": "2023-12-20T03:37:11.221313",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/home/null/code/PokemonRedExperiments/baselines/run_baseline_parallel_fast.py",
+    "codePathLocal": "baselines/run_baseline_parallel_fast.py",
+    "codePath": "baselines/run_baseline_parallel_fast.py",
+    "git": {
+        "remote": "https://github.com/PWhiddy/PokemonRedExperiments.git",
+        "commit": "6b1551354ed5c2b86b85af214034a29d29ccb221"
+    },
+    "email": "rami.m.ismael@gmail.com",
+    "root": "/home/null/code/PokemonRedExperiments",
+    "host": "fedora",
+    "username": "null",
+    "executable": "/home/null/miniconda3/envs/pokemon_red/bin/python",
+    "cpu_count": 4,
+    "cpu_count_logical": 8,
+    "cpu_freq": {
+        "current": 2700.0575000000003,
+        "min": 400.0,
+        "max": 4600.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 2701.436,
+            "min": 400.0,
+            "max": 4600.0
+        },
+        {
+            "current": 2700.03,
+            "min": 400.0,
+            "max": 4600.0
+        },
+        {
+            "current": 2699.606,
+            "min": 400.0,
+            "max": 4600.0
+        },
+        {
+            "current": 2700.457,
+            "min": 400.0,
+            "max": 4600.0
+        },
+        {
+            "current": 2699.992,
+            "min": 400.0,
+            "max": 4600.0
+        },
+        {
+            "current": 2697.728,
+            "min": 400.0,
+            "max": 4600.0
+        },
+        {
+            "current": 2700.371,
+            "min": 400.0,
+            "max": 4600.0
+        },
+        {
+            "current": 2700.343,
+            "min": 400.0,
+            "max": 4600.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 475.3525390625,
+            "used": 231.42555618286133
+        }
+    },
+    "memory": {
+        "total": 15.464714050292969
+    }
+}

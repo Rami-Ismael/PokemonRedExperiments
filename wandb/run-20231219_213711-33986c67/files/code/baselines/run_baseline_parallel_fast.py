@@ -9,7 +9,6 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from tensorboard_callback import TensorboardCallback
-from rich import print
 
 def make_env(rank, env_conf, seed=0):
     """
@@ -45,7 +44,6 @@ if __name__ == '__main__':
     print(env_config)
     
     num_cpu = os.cpu_count() // 2  # Also sets the number of episodes per training iteration
-    print(f'Using {num_cpu} CPUs')
     env = SubprocVecEnv([make_env(i, env_config) for i in range(num_cpu)])
     
     checkpoint_callback = CheckpointCallback(save_freq=ep_length, save_path=sess_path,
@@ -68,7 +66,6 @@ if __name__ == '__main__':
 
     #env_checker.check_env(env)
     learn_steps = 40
-    print(f'Learning for {learn_steps} steps')
     # put a checkpoint here you want to start from
     file_name = 'session_e41c9eff/poke_38207488_steps' 
     
@@ -81,10 +78,8 @@ if __name__ == '__main__':
         model.rollout_buffer.n_envs = num_cpu
         model.rollout_buffer.reset()
     else:
-        print('\ncreating new model')
         model = PPO('CnnPolicy', env, verbose=1, n_steps=ep_length // 8, batch_size=128, n_epochs=3, gamma=0.998, tensorboard_log=sess_path)
     
-    print(f"The total timesteps is {ep_length*num_cpu*1000}")
     for i in range(learn_steps):
         model.learn(total_timesteps=(ep_length)*num_cpu*1000, callback=CallbackList(callbacks))
 
