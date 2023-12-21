@@ -1,3 +1,5 @@
+import argparse
+import multiprocessing
 import os
 from os.path import exists
 from pathlib import Path
@@ -27,14 +29,29 @@ def make_env(rank, env_conf, seed=0):
     return _init
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--rom-path", default="../PokemonRed.gb")
+    parser.add_argument("--state-path", default="../home.state")
+    parser.add_argument("--n-envs", type=int, default=multiprocessing.cpu_count())
+    parser.add_argument("--use-wandb-logging", action="store_true")
+    parser.add_argument("--ep-length", type=int, default=2048 * 10)
+    parser.add_argument("--sess-id", type=str, default=str(uuid.uuid4())[:8])
+    parser.add_argument("--save-video", action='store_true')
+    parser.add_argument("--fast-video", action='store_true')
 
     use_wandb_logging = True
     ep_length = 2048 * 10
     sess_id = str(uuid.uuid4())[:8]
+    
+    
+    
+    
+    
     sess_path = Path(f'session_{sess_id}')
 
     env_config = {
-                'headless': True, 'save_final_state': True, 'early_stop': False,
+                'headless': True, 'save_final_state': True, 'early_stop': True,
                 'action_freq': 24, 'init_state': 'has_pokedex_nballs.state', 'max_steps': ep_length, 
                 'print_rewards': True, 'save_video': False, 'fast_video': True, 'session_path': sess_path,
                 'gb_path': 'PokemonRed.gb', 'debug': False, 'sim_frame_dist': 2_000_000.0, 
@@ -44,7 +61,7 @@ if __name__ == '__main__':
     
     print(env_config)
     
-    num_cpu = os.cpu_count() // 2  # Also sets the number of episodes per training iteration
+    num_cpu = os.cpu_count()  # Also sets the number of episodes per training iteration
     print(f'Using {num_cpu} CPUs')
     env = SubprocVecEnv([make_env(i, env_config) for i in range(num_cpu)])
     
