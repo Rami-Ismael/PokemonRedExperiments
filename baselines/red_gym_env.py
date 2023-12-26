@@ -103,7 +103,7 @@ class RedGymEnv(Env):
                 "events": spaces.MultiBinary((event_flags_end - event_flags_start) * 8),
                 "map": spaces.Box(low=0, high=255, shape=(
                     self.coords_pad*4,self.coords_pad*4, 1), dtype=np.uint8),
-                "recent_actions": spaces.MultiDiscrete([len(self.valid_actions)] * self.frame_stacks)
+                "recent_actions": spaces.MultiDiscrete([len(self.valid_actions)] * self.frame_stacks),
                 "seen_pokemon": spaces.MultiBinary(152),
                 "caught_pokemon": spaces.MultiBinary(152),
                 "moves_obtained": spaces.MultiBinary(0xA5)
@@ -291,7 +291,7 @@ class RedGymEnv(Env):
                 "map_location": self.get_map_location(map_n),
                 "max_map_progress": self.max_map_progress,
                 "last_action": action,
-                "pcount": self.read_m(0xD163),
+                "party_count": self.read_m(0xD163),
                 "levels": levels,
                 "levels_sum": sum(levels),
                 "ptypes": self.read_party(),

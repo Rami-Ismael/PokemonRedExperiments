@@ -33,13 +33,16 @@ if __name__ == "__main__":
     parser.add_argument("--headless", action = "store_true")
     parser.add_argument("--n-envs", type=int, default=multiprocessing.cpu_count())
     parser.add_argument("--use-wandb-logging", action="store_true")
-    parser.add_argument("--ep-length", type=int, default=2048 * 10)
+    parser.add_argument("--ep-length", type=int, default = 16336)
     parser.add_argument("--sess-id", type=str, default=str(uuid.uuid4())[:8])
     parser.add_argument("--save-video", action='store_true')
     parser.add_argument("--fast-video", action='store_true')
-    parser.add_argument("--frame-stacks", type=int, default = 16)
+    parser.add_argument("--frame-stacks", type=int, default = 32)
     parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy")
-    parser.add_argument("--explore-weight", type=float, default = 64)
+    parser.add_argument("--explore-weight", type=float, default = 128)
+    parser.add_argument("--reward-scale", type=float, default = 0.05)
+    parser.add_argument("--seed", type=int, default = 42)
+    parser.add_argument("--early_stop", action = "store_true")
    
     # Arguments 
     args = parser.parse_args()
@@ -52,7 +55,7 @@ if __name__ == "__main__":
     env_config = {
         "headless": args.headless,
         "save_final_state": True,
-        "early_stop": False,
+        "early_stop": args.early_stop,
         "action_freq": 24,
         "init_state": "has_pokedex_nballs.state",
         "max_steps": args.ep_length,
@@ -64,7 +67,7 @@ if __name__ == "__main__":
         "debug": False,
         "sim_frame_dist": 2_000_000.0,
         "use_screen_explore": True,
-        "reward_scale": 4,
+        "reward_scale": args.reward_scale,
         "extra_buttons": False,
         "explore_weight": args.explore_weight,  # 2.5
         "explore_npc_weight": 1,  # 2.5
@@ -102,7 +105,7 @@ if __name__ == "__main__":
     # put a checkpoint here you want to start from
     file_name = "" #"session_9ff8e5f0/poke_21626880_steps"
     
-    n_steps = args.ep_length // 10
+    n_steps = args.ep_length // 8
     print(f"Learning for {n_steps} steps")
     
     
@@ -121,11 +124,13 @@ if __name__ == "__main__":
                     batch_size=128, 
                     n_epochs = 1    , 
                     gamma=0.998, 
-                    tensorboard_log=sess_path)
+                    tensorboard_log=sess_path , 
+                    seed = args.seed
+        )
 
     print(model.policy)
 
-    model.learn(total_timesteps=(args.ep_length)*num_cpu, callback=CallbackList(callbacks))
+    model.learn(total_timesteps=(args.ep_length)*num_cpu * 40, callback=CallbackList(callbacks), progress_bar=True, log_interval = 2)
 
     if use_wandb_logging:
         run.finish()
