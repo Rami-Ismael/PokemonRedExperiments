@@ -39,6 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("--fast-video", action='store_true')
     parser.add_argument("--frame-stacks", type=int, default=4)
     parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy")
+    parser.add_argument("--explore-weight", type=float, default=5)
    
     # Arguments 
     args = parser.parse_args()
@@ -64,7 +65,7 @@ if __name__ == "__main__":
         "use_screen_explore": True,
         "reward_scale": 4,
         "extra_buttons": False,
-        "explore_weight": 3,  # 2.5
+        "explore_weight": args.explore_weight,  # 2.5
         "explore_npc_weight": 1,  # 2.5
         "frame_stacks": args.frame_stacks,
         "policy": args.policy,

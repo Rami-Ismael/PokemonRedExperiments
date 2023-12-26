@@ -184,14 +184,14 @@ class RedGymEnv(Env):
         self.update_recent_screens(screen)
         
         # normalize to approx 0-1
-        sum_of_level_pokemon_party: int =  sum([
+        sum_of_the_party_level: int =  sum([
             self.read_m(a) for a in [0xD18C, 0xD1B8, 0xD1E4, 0xD210, 0xD23C, 0xD268]
         ])
 
         observation = {
             "screens": self.recent_screens,
             "health": np.array([self.read_hp_fraction()]),
-            "level": sum_of_level_pokemon_party,
+            "level": sum_of_the_party_level,
             "badges": np.array([int(bit) for bit in f"{self.read_m(0xD356):08b}"], dtype=np.int8),
             "events": np.array(self.read_event_bits(), dtype=np.int8),
             "map": self.get_explore_map()[:, :, None],
@@ -493,11 +493,11 @@ class RedGymEnv(Env):
         '''
         explore_threshould = 22
         scale_factor = 4
-        sum_of_level_pokemon_party = self.get_levels_sum()
-        if sum_of_level_pokemon_party < explore_threshould:
-            scaled =sum_of_level_pokemon_party 
+        sum_of_the_party_level = self.get_levels_sum()
+        if sum_of_the_party_level < explore_threshould:
+            scaled =sum_of_the_party_level 
         else:
-            scaled = (sum_of_level_pokemon_party - explore_threshould) / scale_factor + explore_threshould
+            scaled = (sum_of_the_party_level - explore_threshould) / scale_factor + explore_threshould
         self.max_level_rew = max(self.max_level_rew, scaled)
         '''
         return self.get_levels_sum()
