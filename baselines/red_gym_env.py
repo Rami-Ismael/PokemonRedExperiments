@@ -98,7 +98,7 @@ class RedGymEnv(Env):
             {
                 "screens": spaces.Box(low=0, high=255, shape=self.output_shape, dtype=np.uint8),
                 "health": spaces.Box(low=0, high=1),
-                "level": spaces.Discrete(low=0, high=600),
+                "level": spaces.Discrete( n = 600, start = 0),
                 "badges": spaces.MultiBinary(8),
                 "events": spaces.MultiBinary((event_flags_end - event_flags_start) * 8),
                 "map": spaces.Box(low=0, high=255, shape=(
@@ -184,7 +184,7 @@ class RedGymEnv(Env):
         self.update_recent_screens(screen)
         
         # normalize to approx 0-1
-        sum_of_level_pokemon_party =  sum([
+        sum_of_level_pokemon_party: int =  sum([
             self.read_m(a) for a in [0xD18C, 0xD1B8, 0xD1E4, 0xD210, 0xD23C, 0xD268]
         ])
 
@@ -489,7 +489,7 @@ class RedGymEnv(Env):
         ]
         return max(sum(poke_levels) - starter_additional_levels, 0)
 
-    def get_levels_reward(self):
+    def get_levels_reward(self)->int:
         '''
         explore_threshould = 22
         scale_factor = 4
