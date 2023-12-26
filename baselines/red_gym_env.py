@@ -98,7 +98,7 @@ class RedGymEnv(Env):
             {
                 "screens": spaces.Box(low=0, high=255, shape=self.output_shape, dtype=np.uint8),
                 "health": spaces.Box(low=0, high=1),
-                "level": spaces.Box(low=-1, high=1, shape=(self.enc_freqs,)),
+                "level": spaces.Discrete(low=0, high=600),
                 "badges": spaces.MultiBinary(8),
                 "events": spaces.MultiBinary((event_flags_end - event_flags_start) * 8),
                 "map": spaces.Box(low=0, high=255, shape=(
@@ -184,14 +184,14 @@ class RedGymEnv(Env):
         self.update_recent_screens(screen)
         
         # normalize to approx 0-1
-        level_sum = 0.02 * sum([
+        sum_of_level_pokemon_party =  sum([
             self.read_m(a) for a in [0xD18C, 0xD1B8, 0xD1E4, 0xD210, 0xD23C, 0xD268]
         ])
 
         observation = {
             "screens": self.recent_screens,
             "health": np.array([self.read_hp_fraction()]),
-            "level": self.fourier_encode(level_sum),
+            "level": sum_of_level_pokemon_party,
             "badges": np.array([int(bit) for bit in f"{self.read_m(0xD356):08b}"], dtype=np.int8),
             "events": np.array(self.read_event_bits(), dtype=np.int8),
             "map": self.get_explore_map()[:, :, None],
@@ -490,15 +490,17 @@ class RedGymEnv(Env):
         return max(sum(poke_levels) - starter_additional_levels, 0)
 
     def get_levels_reward(self):
-        explore_thresh = 22
+        '''
+        explore_threshould = 22
         scale_factor = 4
-        level_sum = self.get_levels_sum()
-        if level_sum < explore_thresh:
-            scaled = level_sum
+        sum_of_level_pokemon_party = self.get_levels_sum()
+        if sum_of_level_pokemon_party < explore_threshould:
+            scaled =sum_of_level_pokemon_party 
         else:
-            scaled = (level_sum - explore_thresh) / scale_factor + explore_thresh
+            scaled = (sum_of_level_pokemon_party - explore_threshould) / scale_factor + explore_threshould
         self.max_level_rew = max(self.max_level_rew, scaled)
-        return self.max_level_rew
+        '''
+        return self.get_levels_sum()
 
     def get_badges(self):
         return self.bit_count(self.read_m(0xD356))
