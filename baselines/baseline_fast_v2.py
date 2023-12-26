@@ -38,7 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("--save-video", action='store_true')
     parser.add_argument("--fast-video", action='store_true')
     parser.add_argument("--frame-stacks", type=int, default=4)
-    parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy2")
+    parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy")
    
     # Arguments 
     args = parser.parse_args()
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         "reward_scale": 4,
         "extra_buttons": False,
         "explore_weight": 3,  # 2.5
-        "explore_npc_weight": 5,  # 2.5
+        "explore_npc_weight": 1,  # 2.5
         "frame_stacks": args.frame_stacks,
         "policy": args.policy,
     }
@@ -100,11 +100,14 @@ if __name__ == "__main__":
     # put a checkpoint here you want to start from
     file_name = "" #"session_9ff8e5f0/poke_21626880_steps"
     
+    n_steps = args.ep_length // 8
+    print(f"Learning for {n_steps} steps")
+    
     
     if exists(file_name + ".zip"):
         print("\nloading checkpoint")
         model = PPO.load(file_name, env=env)
-        model.n_steps = args.ep_length  // 8 
+        model.n_steps = n_steps
         model.n_envs = num_cpu
         model.rollout_buffer.buffer_size = args.ep_length
         model.rollout_buffer.n_envs = num_cpu
@@ -112,7 +115,7 @@ if __name__ == "__main__":
     else:
         model = PPO( args.policy, 
                     env, verbose=1, 
-                    n_steps = args.ep_length // 8 , 
+                    n_steps = n_steps , 
                     batch_size=128, 
                     n_epochs = 3    , 
                     gamma=0.998, 

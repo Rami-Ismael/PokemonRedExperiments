@@ -31,7 +31,7 @@ class RedGymEnv(Env):
         self.max_steps = config["max_steps"]
         self.save_video = config["save_video"]
         self.fast_video = config["fast_video"]
-        self.frame_stacks = 3
+        self.frame_stacks = config["frame_stacks"]
         self.explore_weight = (
             1 if "explore_weight" not in config else config["explore_weight"]
         )
