@@ -30,19 +30,20 @@ def make_env(rank, env_conf, seed=0):
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
-    parser.add_argument("--headless", type=bool, default=True)
+    parser.add_argument("--headless", action = "store_true")
     parser.add_argument("--n-envs", type=int, default=multiprocessing.cpu_count())
     parser.add_argument("--use-wandb-logging", action="store_true")
     parser.add_argument("--ep-length", type=int, default=2048 * 10)
     parser.add_argument("--sess-id", type=str, default=str(uuid.uuid4())[:8])
     parser.add_argument("--save-video", action='store_true')
     parser.add_argument("--fast-video", action='store_true')
-    parser.add_argument("--frame-stacks", type=int, default=4)
+    parser.add_argument("--frame-stacks", type=int, default=8)
     parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy")
-    parser.add_argument("--explore-weight", type=float, default=5)
+    parser.add_argument("--explore-weight", type=float, default = 7)
    
     # Arguments 
     args = parser.parse_args()
+    print(f"The value of the headless is {args.headless}")
 
     use_wandb_logging = True
     sess_id = str(uuid.uuid4())[:8]

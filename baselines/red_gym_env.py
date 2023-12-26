@@ -500,7 +500,7 @@ class RedGymEnv(Env):
             scaled = (sum_of_the_party_level - explore_threshould) / scale_factor + explore_threshould
         self.max_level_rew = max(self.max_level_rew, scaled)
         '''
-        return self.get_levels_sum()
+        return self.get_levels_sum() // 600
 
     def get_badges(self):
         return self.bit_count(self.read_m(0xD356))
