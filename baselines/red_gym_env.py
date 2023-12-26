@@ -50,6 +50,7 @@ class RedGymEnv(Env):
         self.reset_count = 0
         self.all_runs = []
 
+        self.pokecenter_ids = [0x01, 0x02, 0x03, 0x0F, 0x15, 0x05, 0x06, 0x04, 0x07, 0x08, 0x0A]
         self.essential_map_locations = {
             v:i for i,v in enumerate([
                 40, 0, 12, 1, 13, 51, 2, 54, 14, 59, 60, 61, 15, 3, 65
@@ -155,6 +156,7 @@ class RedGymEnv(Env):
         self.seen_pokemon = np.zeros(152, dtype=np.uint8)
         self.caught_pokemon = np.zeros(152, dtype=np.uint8)
         self.moves_obtained = np.zeros(0xA5, dtype=np.uint8)
+        self.visited_pokecenter_list = []
 
         self.base_event_flags = sum([
                 self.bit_count(self.read_m(i))
@@ -304,6 +306,7 @@ class RedGymEnv(Env):
                 "caught_pokemon": int(sum(self.caught_pokemon)),
                 "seen_pokemon": int(sum(self.seen_pokemon)),
                 "moves_obtained": int(sum(self.moves_obtained)),
+                'visited_pokecenterr': self.progress_reward['visited_pokecenter'],
             }
         )
 
@@ -549,6 +552,7 @@ class RedGymEnv(Env):
             "seen_pokemon": self.reward_scale * sum(self.seen_pokemon) * 0.000010,
             "caught_pokemon": self.reward_scale * sum(self.caught_pokemon) * 0.000020,
             "moves_obtained": self.reward_scale * sum(self.moves_obtained) * 0.000020,
+            'visited_pokecenter': self.get_visited_pokecenter_reward(),
         }
 
         return state_scores
@@ -628,6 +632,36 @@ class RedGymEnv(Env):
     
     def fourier_encode(self, val):
         return np.sin(val * 2 ** np.arange(self.enc_freqs))
+    def get_last_pokecenter_list(self):
+        pc_list = [0, ] * len(self.pokecenter_ids)
+        last_pokecenter_id = self.get_last_pokecenter_id()
+        if last_pokecenter_id != -1:
+            pc_list[last_pokecenter_id] = 1
+        return pc_list
+    
+    def get_last_pokecenter_id(self):
+        
+        last_pokecenter = self.read_m(0xD719)
+        # will throw error if last_pokecenter not in pokecenter_ids, intended
+        if last_pokecenter == 0:
+            # no pokecenter visited yet
+            return -1
+        return self.pokecenter_ids.index(last_pokecenter)
+    def get_last_pokecenter_obs(self):
+        return self.get_last_pokecenter_list()
+
+    def get_visited_pokecenter_obs(self):
+        result = [0] * len(self.pokecenter_ids)
+        for i in self.visited_pokecenter_list:
+            result[i] = 1
+        return result
+    def get_visited_pokecenter_reward(self):
+        # reward for first time healed in pokecenter
+        last_pokecenter_id = self.get_last_pokecenter_id()
+        if last_pokecenter_id != -1 and last_pokecenter_id not in self.visited_pokecenter_list:
+            self.visited_pokecenter_list.append(last_pokecenter_id)
+        return len(self.visited_pokecenter_list) * 2
+    
     
     def update_map_progress(self):
         map_idx = self.read_m(0xD35E)
