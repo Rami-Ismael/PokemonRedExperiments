@@ -12,3 +12,6 @@ session_*
 PokemonRed.gb.state
 *gif*
 *wandb*
+**wandb**
+**log**
+**debug**

@@ -30,7 +30,7 @@ def make_env(rank, env_conf, seed=0):
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
-    parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--headless", action="store_false")
     parser.add_argument("--n-envs", type=int, default=multiprocessing.cpu_count())
     parser.add_argument("--use-wandb-logging", action="store_true")
     parser.add_argument("--ep-length", type=int, default=2048 * 10)
@@ -110,7 +110,7 @@ if __name__ == "__main__":
         model.rollout_buffer.n_envs = num_cpu
         model.rollout_buffer.reset()
     else:
-        model = PPO("MultiInputPolicy", 
+        model = PPO( args.policy, 
                     env, verbose=1, 
                     n_steps = args.ep_length // 8 , 
                     batch_size=128, 
