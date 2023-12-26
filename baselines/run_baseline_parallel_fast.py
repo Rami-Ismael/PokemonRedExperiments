@@ -61,7 +61,7 @@ if __name__ == '__main__':
     
     print(env_config)
     
-    num_cpu = os.cpu_count()  # Also sets the number of episodes per training iteration
+    num_cpu = os.cpu_count() // 2  # Also sets the number of episodes per training iteration
     print(f'Using {num_cpu} CPUs')
     env = SubprocVecEnv([make_env(i, env_config) for i in range(num_cpu)])
     
@@ -100,6 +100,7 @@ if __name__ == '__main__':
     else:
         print('\ncreating new model')
         model = PPO('CnnPolicy', env, verbose=1, n_steps=ep_length // 8, batch_size=128, n_epochs=3, gamma=0.998, tensorboard_log=sess_path)
+        print(f"The model policy is {model.policy}")
     
     print(f"The total timesteps is {ep_length*num_cpu*1000}")
     for i in range(learn_steps):
