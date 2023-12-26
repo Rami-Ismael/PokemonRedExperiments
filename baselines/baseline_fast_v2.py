@@ -37,9 +37,9 @@ if __name__ == "__main__":
     parser.add_argument("--sess-id", type=str, default=str(uuid.uuid4())[:8])
     parser.add_argument("--save-video", action='store_true')
     parser.add_argument("--fast-video", action='store_true')
-    parser.add_argument("--frame-stacks", type=int, default=8)
+    parser.add_argument("--frame-stacks", type=int, default = 16)
     parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy")
-    parser.add_argument("--explore-weight", type=float, default = 7)
+    parser.add_argument("--explore-weight", type=float, default = 64)
    
     # Arguments 
     args = parser.parse_args()
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     # put a checkpoint here you want to start from
     file_name = "" #"session_9ff8e5f0/poke_21626880_steps"
     
-    n_steps = args.ep_length // 8
+    n_steps = args.ep_length // 10
     print(f"Learning for {n_steps} steps")
     
     
@@ -119,13 +119,13 @@ if __name__ == "__main__":
                     env, verbose=1, 
                     n_steps = n_steps , 
                     batch_size=128, 
-                    n_epochs = 3    , 
+                    n_epochs = 1    , 
                     gamma=0.998, 
                     tensorboard_log=sess_path)
 
     print(model.policy)
 
-    model.learn(total_timesteps=(args.ep_length)*num_cpu*10000, callback=CallbackList(callbacks))
+    model.learn(total_timesteps=(args.ep_length)*num_cpu, callback=CallbackList(callbacks))
 
     if use_wandb_logging:
         run.finish()
