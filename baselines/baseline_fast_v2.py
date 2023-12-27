@@ -1,5 +1,7 @@
 import argparse
 import multiprocessing
+import random
+import numpy as np
 from os.path import exists
 from pathlib import Path
 import uuid
@@ -25,7 +27,9 @@ def make_env(rank, env_conf, seed=0):
         env = RedGymEnv(env_conf)
         env.reset(seed=(seed + rank))
         return env
+    
     set_random_seed(seed)
+    
     return _init
 
 if __name__ == "__main__":
@@ -38,7 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--sess-id", type=str, default=str(uuid.uuid4())[:8])
     parser.add_argument("--save-video", action='store_true')
     parser.add_argument("--fast-video", action='store_true')
-    parser.add_argument("--frame-stacks", type=int, default = 32)
+    parser.add_argument("--frame-stacks", type=int, default = 64)
     parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy")
     parser.add_argument("--explore-weight", type=float, default = 32)
     parser.add_argument("--reward-scale", type=float, default = 0.05)
@@ -79,7 +83,8 @@ if __name__ == "__main__":
         "restricted_start_menu": args.restricted_start_menu,
         "extra_buttons": args.extra_buttons,
     }
-
+    random.seed(args.seed)
+    np.random.seed(args.seed)
     print(f"The environment config is: {env_config}")
     import os
     num_cpu = os.cpu_count() //2   # Also sets the number of episodes per training iteration

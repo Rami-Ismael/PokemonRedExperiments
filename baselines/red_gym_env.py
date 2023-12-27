@@ -9,6 +9,7 @@ from pyboy import PyBoy
 from pyboy.logger import log_level
 import mediapy as media
 from einops import repeat
+from skimage.transform import resize
 
 from gymnasium import Env, spaces
 from pyboy.utils import WindowEvent
@@ -125,7 +126,9 @@ class RedGymEnv(Env):
                 "recent_actions": spaces.MultiDiscrete([len(self.valid_actions)] * self.frame_stacks),
                 "seen_pokemon": spaces.MultiBinary(152),
                 "caught_pokemon": spaces.MultiBinary(152),
-                "moves_obtained": spaces.MultiBinary(0xA5)
+                "moves_obtained": spaces.MultiBinary(0xA5),
+                'item_ids': spaces.Box(low=0, high=255, shape=(20,), dtype=np.uint8),
+                'item_quantity': spaces.Box(low=-1, high=1, shape=(20, 1), dtype=np.float32),
             }
         )
 
@@ -202,6 +205,59 @@ class RedGymEnv(Env):
                 downscale_local_mean(game_pixels_render, (2,2,1))
             ).astype(np.uint8)
         return game_pixels_render
+    def boey_render(self, reduce_res=True, add_memory=True, update_mem=True):
+        game_pixels_render = self.screen.screen_ndarray() # (144, 160, 3)
+        if reduce_res:
+            game_pixels_render = game_pixels_render[:, :, 0]  # should be 3x speed up for rendering
+            game_pixels_render = (255*resize(game_pixels_render, self.output_shape)).astype(np.uint8)
+            if update_mem:
+                reduced_frame = game_pixels_render
+                self.recent_frames[0] = reduced_frame
+            if add_memory:
+                # pad = np.zeros(
+                #     shape=(self.mem_padding, self.output_shape[1], 3), 
+                #     dtype=np.uint8)
+                # game_pixels_render = np.concatenate(
+                #     (
+                #         self.create_exploration_memory(), 
+                #         pad,
+                #         self.create_recent_memory(),
+                #         pad,
+                #         rearrange(self.recent_frames, 'f h w c -> (f h) w c')
+                #     ),
+                #     axis=0)
+                game_pixels_render = {
+                    'image': self.recent_frames,
+                    'vector': self.get_all_raw_obs(),
+                    'map_ids': self.get_last_map_id_obs(),
+                    'item_ids': self.get_all_item_ids_obs(),
+                    'item_quantity': self.get_items_quantity_obs(),
+                    'poke_ids': self.get_all_pokemon_ids_obs(),
+                    'poke_type_ids': self.get_all_pokemon_types_obs(),
+                    'poke_move_ids': self.get_all_move_ids_obs(),
+                    'poke_move_pps': self.get_all_move_pps_obs(),
+                    'poke_all': self.get_all_pokemon_obs(),
+                    'event_ids': self.get_all_event_ids_obs(),
+                    'event_step_since': self.get_all_event_step_since_obs(),
+                    # 'in_battle_mask': self.get_in_battle_mask_obs(),
+                }
+
+        return game_pixels_render
+    
+    def get_items_in_bag(self, one_indexed=0):
+        first_item = 0xD31E
+        # total 20 items
+        # item1, quantity1, item2, quantity2, ...
+        item_ids = []
+        for i in range(0, 20, 2):
+            item_id = self.read_m(first_item + i)
+            if item_id == 0 or item_id == 0xff:
+                break
+            item_ids.append(item_id + one_indexed)
+        return item_ids
+    def get_all_item_ids_obs(self):
+        # max 85
+        return np.array(self.get_items_obs(), dtype=np.uint8)
     
     def _get_obs(self):
         
@@ -566,19 +622,22 @@ class RedGymEnv(Env):
         # addresses from https://datacrystal.romhacking.net/wiki/Pok%C3%A9mon_Red/Blue:RAM_map
         # https://github.com/pret/pokered/blob/91dc3c9f9c8fd529bb6e8307b58b96efa0bec67e/constants/event_constants.asm
         state_scores = {
-            "event": self.reward_scale * self.update_max_event_rew() * 3,
-            "level": self.reward_scale * self.get_levels_reward(),
-            "heal": self.reward_scale * self.total_healing_rew * 4,
-            "op_lvl": self.reward_scale * self.update_max_op_level() * 0.2,
-            "dead": self.reward_scale * self.died_count * -0.1,
-            "badge": self.reward_scale * self.get_badges() * 5,
-            "explore": self.reward_scale * self.explore_weight * len(self.seen_coords) * 0.01,
-            "seen_pokemon": self.reward_scale * sum(self.seen_pokemon) * 0.00010,
-            "caught_pokemon": self.reward_scale * sum(self.caught_pokemon) * 0.000020,
-            "moves_obtained": self.reward_scale * sum(self.moves_obtained) * 0.000020,
+            "event":  self.update_max_event_rew() * 3,
+            "level":  self.get_levels_reward(),
+            "heal":  self.total_healing_rew * 4,
+            "op_lvl":  self.update_max_op_level() * 0.2,
+            "dead":  self.died_count * -0.1,
+            "badge":  self.get_badges() * 5,
+            "explore":  self.explore_weight * len(self.seen_coords) * 0.01,
+            "seen_pokemon":  sum(self.seen_pokemon) * 0.00010,
+            "caught_pokemon":  sum(self.caught_pokemon) * 0.000020,
+            "moves_obtained":  sum(self.moves_obtained) * 0.000020,
             'visited_pokecenter': self.get_visited_pokecenter_reward(),
+            'hm': self.get_hm_rewards(),
+            'hm_move': self.get_hm_move_reward(),
         }
-
+        # multiply by reward scale
+        state_scores = {k: v * self.reward_scale for k, v in state_scores.items()}
         return state_scores
 
     def update_max_op_level(self):
@@ -720,6 +779,22 @@ class RedGymEnv(Env):
                 # opening menu, always set to 1
                 self.pyboy.set_memory_value(0xCC2D, 1)  # wBattleAndStartSavedMenuItem
         return action
+    def get_hm_rewards(self):
+        hm_ids = [0xC4, 0xC5, 0xC6, 0xC7, 0xC8]
+        items = self.get_items_in_bag()
+        total_hm_cnt = 0
+        for hm_id in hm_ids:
+            if hm_id in items:
+                total_hm_cnt += 1
+        return total_hm_cnt * 1
+    def get_hm_move_reward(self):
+        all_moves = self.get_party_moves()
+        hm_moves = [0x0f, 0x13, 0x39, 0x46, 0x94]
+        hm_move_count = 0
+        for hm_move in hm_moves:
+            if hm_move in all_moves:
+                hm_move_count += 1
+        return hm_move_count * 1.5
 
 
     def run_action_on_emulator(self, action):
