@@ -38,11 +38,11 @@ if __name__ == "__main__":
     parser.add_argument("--headless", action = "store_true")
     parser.add_argument("--n-envs", type=int, default=multiprocessing.cpu_count())
     parser.add_argument("--use-wandb-logging", action="store_true")
-    parser.add_argument("--ep-length", type=int, default = 32672)
+    parser.add_argument("--ep-length", type=int, default = 8168)
     parser.add_argument("--sess-id", type=str, default=str(uuid.uuid4())[:8])
     parser.add_argument("--save-video", action='store_true')
     parser.add_argument("--fast-video", action='store_true')
-    parser.add_argument("--frame-stacks", type=int, default = 64)
+    parser.add_argument("--frame-stacks", type=int, default = 32)
     parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy")
     parser.add_argument("--explore-weight", type=float, default = 32)
     parser.add_argument("--reward-scale", type=float, default = 0.05)
@@ -50,6 +50,9 @@ if __name__ == "__main__":
     parser.add_argument("--early_stop", action = "store_true")
     parser.add_argument("--extra-buttons", action = "store_true")
     parser.add_argument("--restricted-start-menu", action = "store_true")
+    parser.add_argument("--use_screen_explore", action = "store_false")
+    parser.add_argument("--randomize-fist-ep-split-cnt", type=int, default = 0)
+    parser.add_argument("--similar-frame-dist", type=int, default = 2_000_000.0)
    
     # Arguments 
     args = parser.parse_args()
@@ -72,7 +75,7 @@ if __name__ == "__main__":
         "session_path": sess_path,
         "gb_path": 'PokemonRed.gb',
         "debug": False,
-        "sim_frame_dist": 2_000_000.0,
+        "sim_frame_dist": args.similar_frame_dist,
         "use_screen_explore": True,
         "reward_scale": args.reward_scale,
         "extra_buttons": False,
@@ -82,6 +85,7 @@ if __name__ == "__main__":
         "policy": args.policy,
         "restricted_start_menu": args.restricted_start_menu,
         "extra_buttons": args.extra_buttons,
+        "use_screen_explore": args.use_screen_explore,
     }
     random.seed(args.seed)
     np.random.seed(args.seed)

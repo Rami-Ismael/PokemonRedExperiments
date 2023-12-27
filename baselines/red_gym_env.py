@@ -10,6 +10,7 @@ from pyboy.logger import log_level
 import mediapy as media
 from einops import repeat
 from skimage.transform import resize
+import hnswlib
 
 from gymnasium import Env, spaces
 from pyboy.utils import WindowEvent
@@ -23,6 +24,7 @@ museum_ticket = (0xD754, 0)
 
 class RedGymEnv(Env):
     def __init__(self, config=None):
+        
         self.s_path = config["session_path"]
         self.save_final_state = config["save_final_state"]
         self.print_rewards = config["print_rewards"]
@@ -38,6 +40,9 @@ class RedGymEnv(Env):
         self.explore_weight = (
             1 if "explore_weight" not in config else config["explore_weight"]
         )
+        self.use_screen_explore = True if 'use_screen_explore' not in config else config['use_screen_explore']
+        self.randomize_first_ep_split_cnt = 0 if 'randomize_first_ep_split_cnt' not in config else config['randomize_first_ep_split_cnt']
+        self.similar_frame_dist = config['sim_frame_dist']
         self.reward_scale = (
             1 if "reward_scale" not in config else config["reward_scale"]
         )
@@ -52,6 +57,19 @@ class RedGymEnv(Env):
         self.map_frame_writer = None
         self.reset_count = 0
         self.all_runs = []
+        self.n_pokemon_features = 23
+        self.vec_dim = 4096
+        self.num_elements = 20000 # max
+        self.output_shape = (36, 40)
+        self.mem_padding = 2
+        self.memory_height = 8
+        self.col_steps = 16
+        self.output_full = (
+            self.frame_stacks,
+            self.output_shape[0],
+            self.output_shape[1]
+        )
+        self.output_vector_shape = (54, )
 
         self.pokecenter_ids = [0x01, 0x02, 0x03, 0x0F, 0x15, 0x05, 0x06, 0x04, 0x07, 0x08, 0x0A]
         self.essential_map_locations = {
@@ -127,8 +145,6 @@ class RedGymEnv(Env):
                 "seen_pokemon": spaces.MultiBinary(152),
                 "caught_pokemon": spaces.MultiBinary(152),
                 "moves_obtained": spaces.MultiBinary(0xA5),
-                'item_ids': spaces.Box(low=0, high=255, shape=(20,), dtype=np.uint8),
-                'item_quantity': spaces.Box(low=-1, high=1, shape=(20, 1), dtype=np.float32),
             }
         )
 
@@ -146,14 +162,28 @@ class RedGymEnv(Env):
 
         if not config["headless"]:
             self.pyboy.set_emulation_speed(6)
-
+    def init_knn(self):
+        # Declaring index
+        self.knn_index = hnswlib.Index(space='l2', dim=self.vec_dim) # possible options are l2, cosine or ip
+        # Initing index - the maximum number of elements should be known beforehand
+        self.knn_index.init_index(
+            max_elements=self.num_elements, ef_construction=100, M=16)
+        
     def reset(self, seed=None):
         self.seed = seed
+        
+        self.init_map_mem()
         # restart game, skipping credits
         with open(self.init_state, "rb") as f:
             self.pyboy.load_state(f)
+        
+        self.recent_memory = np.zeros((self.output_shape[1]*self.memory_height, 3), dtype=np.uint8)
+        
+        self.recent_frames = np.zeros(
+            (self.frame_stacks, self.output_shape[0], 
+            self.output_shape[1]),
+            dtype=np.uint8)
 
-        self.init_map_mem()
 
         self.agent_stats = []
 
@@ -194,6 +224,37 @@ class RedGymEnv(Env):
         self.total_reward = sum([val for _, val in self.progress_reward.items()])
         self.reset_count += 1
         return self._get_obs(), {}
+    def update_frame_knn_index(self, frame_vec):
+        
+        # if self.get_levels_sum() >= 22 and not self.levels_satisfied:
+        #     self.levels_satisfied = True
+        #     self.base_explore = self.knn_index.get_current_count()
+        #     self.init_knn()
+
+        if self.knn_index.get_current_count() == 0:
+            # if index is empty add current frame
+            self.knn_index.add_items(
+                frame_vec, np.array([self.knn_index.get_current_count()])
+            )
+        else:
+            # check for nearest frame and add if current 
+            labels, distances = self.knn_index.knn_query(frame_vec, k = 1)
+            if distances[0][0] > self.similar_frame_dist:
+                # print(f"distances[0][0] : {distances[0][0]} similar_frame_dist : {self.similar_frame_dist}")
+                self.knn_index.add_items(
+                    frame_vec, np.array([self.knn_index.get_current_count()])
+                )
+    def get_all_event_ids_obs(self):
+        # max 249
+        # padding_idx = 0
+        # change dtype to uint8 to save space
+        return np.array(self.last_10_event_ids[:, 0] + 1, dtype=np.uint8)
+    
+    def get_all_event_step_since_obs(self):
+        step_gotten = self.last_10_event_ids[:, 1]  # shape (10,)
+        step_since = self.step_count - step_gotten
+        # step_count - step_since and scaled_encoding
+        return self.scaled_encoding(step_since, 1000).reshape(-1, 1)  # shape (10,)
 
     def init_map_mem(self):
         self.seen_coords = {}
@@ -243,6 +304,17 @@ class RedGymEnv(Env):
                 }
 
         return game_pixels_render
+    def get_knn_reward(self, last_event_rew):
+        if last_event_rew != self.max_event_rew:
+            # event reward increased, reset exploration
+            if self.use_screen_explore:
+                self.prev_knn_rew += self.knn_index.get_current_count()
+                self.knn_index.clear_index()
+            else:
+                self.prev_knn_rew += len(self.seen_coords)
+                self.seen_coords = {}
+        cur_size = self.knn_index.get_current_count() if self.use_screen_explore else len(self.seen_coords)
+        return (self.prev_knn_rew + cur_size) * self.explore_weight * 0.005  # 0.003
     
     def get_items_in_bag(self, one_indexed=0):
         first_item = 0xD31E
@@ -437,15 +509,11 @@ class RedGymEnv(Env):
         self.map_frame_writer.add_image(
             self.get_explore_map()
         )
-
     def get_game_coords(self):
-        return (self.read_m(0xD362), self.read_m(0xD361), self.read_m(0xD35E))
-
-    def update_seen_coords(self):
-        x_pos, y_pos, map_n = self.get_game_coords()
-        coord_string = f"x:{x_pos} y:{y_pos} m:{map_n}"
-        self.seen_coords[coord_string] = self.step_count
-
+        x_pos = self.read_m(0xD362)
+        y_pos = self.read_m(0xD361)
+        map_n = self.read_m(0xD35E)
+        return x_pos, y_pos, map_n
     def get_global_coords(self):
         x_pos, y_pos, map_n = self.get_game_coords()
         c = (np.array([x_pos,-y_pos])
@@ -630,7 +698,7 @@ class RedGymEnv(Env):
             "op_lvl":  self.update_max_op_level() * 0.2,
             "dead":  self.died_count * -0.1,
             "badge":  self.get_badges() * 5,
-            "explore":  self.explore_weight * len(self.seen_coords) * 0.01,
+            #"explore":  self.explore_weight * len(self.seen_coords) * 0.01,
             "seen_pokemon":  sum(self.seen_pokemon) * 0.00010,
             "caught_pokemon":  sum(self.caught_pokemon) * 0.00020,
             "moves_obtained":  sum(self.moves_obtained) * 0.00020,
@@ -641,6 +709,15 @@ class RedGymEnv(Env):
         # multiply by reward scale
         state_scores = {k: v * self.reward_scale for k, v in state_scores.items()}
         return state_scores
+    def update_seen_coords(self):
+        ## Getting Game Coordinates
+        x_pos = self.read_m(0xD362)
+        y_pos = self.read_m(0xD361)
+        map_n = self.read_m(0xD35E)
+        coord_string = f"x:{x_pos} y:{y_pos} m:{map_n}"
+        self.seen_coords[coord_string] = self.step_count
+    def init_map_mem(self):
+        self.seen_coords = {}
 
     def update_max_op_level(self):
         opp_base_level = 5
@@ -789,6 +866,26 @@ class RedGymEnv(Env):
             if hm_id in items:
                 total_hm_cnt += 1
         return total_hm_cnt * 1
+    def get_party_moves(self):
+        # first pokemon moves at D173
+        # 4 moves per pokemon
+        # next pokemon moves is 44 bytes away
+        first_move = 0xD173
+        moves = []
+        for i in range(0, 44*6, 44):
+            # 4 moves per pokemon
+            move = [self.read_m(first_move + i + j) for j in range(4)]
+            moves.extend(move)
+        return moves
+    def get_hm_move_obs(self):
+        hm_moves = [0x0f, 0x13, 0x39, 0x46, 0x94]
+        result = [0] * len(hm_moves)
+        all_moves = self.get_party_moves()
+        for i, hm_move in enumerate(hm_moves):
+            if hm_move in all_moves:
+                result[i] = 1
+                continue
+        return result
     def get_hm_move_reward(self):
         all_moves = self.get_party_moves()
         hm_moves = [0x0f, 0x13, 0x39, 0x46, 0x94]
