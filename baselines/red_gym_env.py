@@ -387,6 +387,8 @@ class RedGymEnv(Env):
                 "seen_pokemon": int(sum(self.seen_pokemon)),
                 "moves_obtained": int(sum(self.moves_obtained)),
                 'visited_pokecenterr': self.progress_reward['visited_pokecenter'],
+                'hmr': self.progress_reward['hm'],
+                'hm_mover': self.progress_reward['hm_move'],
             }
         )
 
