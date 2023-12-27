@@ -698,7 +698,7 @@ class RedGymEnv(Env):
             "op_lvl":  self.update_max_op_level() * 0.2,
             "dead":  self.died_count * -0.1,
             "badge":  self.get_badges() * 5,
-            #"explore":  self.explore_weight * len(self.seen_coords) * 0.01,
+            "explore":  len(self.seen_coords) * 0.01,
             "seen_pokemon":  sum(self.seen_pokemon) * 0.00010,
             "caught_pokemon":  sum(self.caught_pokemon) * 0.00020,
             "moves_obtained":  sum(self.moves_obtained) * 0.00020,

@@ -38,7 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("--headless", action = "store_true")
     parser.add_argument("--n-envs", type=int, default=multiprocessing.cpu_count())
     parser.add_argument("--use-wandb-logging", action="store_true")
-    parser.add_argument("--ep-length", type=int, default = 8168)
+    parser.add_argument("--ep-length", type=int, default = 4096)
     parser.add_argument("--sess-id", type=str, default=str(uuid.uuid4())[:8])
     parser.add_argument("--save-video", action='store_true')
     parser.add_argument("--fast-video", action='store_true')
