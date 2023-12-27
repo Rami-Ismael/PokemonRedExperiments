@@ -32,6 +32,8 @@ class RedGymEnv(Env):
         self.save_video = config["save_video"]
         self.fast_video = config["fast_video"]
         self.frame_stacks = config["frame_stacks"]
+        self.extra_buttons = False if 'extra_buttons' not in config else config['extra_buttons']
+        self.restricted_start_menu = False if 'restricted_start_menu' not in config else config['restricted_start_menu']
         self.explore_weight = (
             1 if "explore_weight" not in config else config["explore_weight"]
         )
@@ -70,6 +72,11 @@ class RedGymEnv(Env):
             WindowEvent.PRESS_BUTTON_B,
             WindowEvent.PRESS_BUTTON_START,
         ]
+        if self.extra_buttons:
+            self.valid_actions.extend([
+                WindowEvent.PRESS_BUTTON_START,
+                # WindowEvent.PASS
+            ])
 
         self.release_actions = [
             WindowEvent.RELEASE_ARROW_DOWN,
@@ -79,6 +86,17 @@ class RedGymEnv(Env):
             WindowEvent.RELEASE_BUTTON_A,
             WindowEvent.RELEASE_BUTTON_B,
             WindowEvent.RELEASE_BUTTON_START
+        ]
+        self.release_arrow = [
+            WindowEvent.RELEASE_ARROW_DOWN,
+            WindowEvent.RELEASE_ARROW_LEFT,
+            WindowEvent.RELEASE_ARROW_RIGHT,
+            WindowEvent.RELEASE_ARROW_UP
+        ]
+
+        self.release_button = [
+            WindowEvent.RELEASE_BUTTON_A,
+            WindowEvent.RELEASE_BUTTON_B
         ]
 
         # load event names (parsed from https://github.com/pret/pokered/blob/91dc3c9f9c8fd529bb6e8307b58b96efa0bec67e/constants/event_constants.asm)
@@ -226,6 +244,10 @@ class RedGymEnv(Env):
         self.update_explore_map()
 
         self.update_heal_reward()
+        
+        self.update_pokedex()
+        
+        self.update_moves_obtained()
 
         self.party_size = self.read_m(0xD163)
 
@@ -258,7 +280,8 @@ class RedGymEnv(Env):
         self.step_count += 1
 
         return obs, new_reward, False, step_limit_reached, {}
-    
+    '''
+    This is the oold run action on emulators function
     def run_action_on_emulator(self, action):
         # press button then release after some steps
         self.pyboy.send_input(self.valid_actions[action])
@@ -278,6 +301,7 @@ class RedGymEnv(Env):
             self.pyboy.tick()
         if self.save_video and self.fast_video:
             self.add_video_frame()
+    '''
 
     def append_agent_stats(self, action):
         x_pos, y_pos, map_n = self.get_game_coords()
@@ -549,7 +573,7 @@ class RedGymEnv(Env):
             "dead": self.reward_scale * self.died_count * -0.1,
             "badge": self.reward_scale * self.get_badges() * 5,
             "explore": self.reward_scale * self.explore_weight * len(self.seen_coords) * 0.01,
-            "seen_pokemon": self.reward_scale * sum(self.seen_pokemon) * 0.000010,
+            "seen_pokemon": self.reward_scale * sum(self.seen_pokemon) * 0.00010,
             "caught_pokemon": self.reward_scale * sum(self.caught_pokemon) * 0.000020,
             "moves_obtained": self.reward_scale * sum(self.moves_obtained) * 0.000020,
             'visited_pokecenter': self.get_visited_pokecenter_reward(),
@@ -672,6 +696,59 @@ class RedGymEnv(Env):
             return self.essential_map_locations[map_idx]
         else:
             return -1
+    def get_menu_restricted_action(self, action: int) -> int:
+        if not self.is_in_battle():
+            if self.is_in_start_menu():
+                # not in battle and in start menu
+                # if wCurrentMenuItem == 1, then up / down will be changed to down
+                # if wCurrentMenuItem == 2, then up / down will be changed to up
+                current_menu_item = self.read_m(0xCC26)
+                if current_menu_item not in [1, 2]:
+                    print(f'\nWarning! current start menu item: {current_menu_item}, not 1 or 2')
+                    # do nothing, return action
+                    return action
+                if action < 4:
+                    # any arrow key will be changed to down if wCurrentMenuItem == 1
+                    # any arrow key will be changed to up if wCurrentMenuItem == 2
+                    if current_menu_item == 1:
+                        action = 0  # down
+                    elif current_menu_item == 2:
+                        action = 3  # up
+                pass
+            else:
+                # no in battle and start menu, pressing START
+                # opening menu, always set to 1
+                self.pyboy.set_memory_value(0xCC2D, 1)  # wBattleAndStartSavedMenuItem
+        return action
+
+
+    def run_action_on_emulator(self, action):
+        if self.extra_buttons and self.restricted_start_menu:
+            # restrict start menu choices
+            action = self.get_menu_restricted_action(action)
+        # press button then release after some steps
+        self.pyboy.send_input(self.valid_actions[action])
+        # disable rendering when we don't need it
+        if self.headless and (self.fast_video or not self.save_video):
+            self.pyboy._rendering(False)
+        for i in range(self.act_freq):
+            # release action, so they are stateless
+            if i == 8:
+                if action < 4:
+                    # release arrow
+                    self.pyboy.send_input(self.release_arrow[action])
+                if action > 3 and action < 6:
+                    # release button 
+                    self.pyboy.send_input(self.release_button[action - 4])
+                if self.valid_actions[action] == WindowEvent.PRESS_BUTTON_START:
+                    self.pyboy.send_input(WindowEvent.RELEASE_BUTTON_START)
+            if self.save_video and not self.fast_video:
+                self.add_video_frame()
+            if i == self.act_freq-1:
+                self.pyboy._rendering(True)
+            self.pyboy.tick()
+        if self.save_video and self.fast_video:
+            self.add_video_frame()
 
     def get_map_location(self, map_idx):
         map_locations = {

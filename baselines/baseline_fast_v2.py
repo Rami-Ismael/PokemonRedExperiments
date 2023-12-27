@@ -11,6 +11,7 @@ from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from tensorboard_callback import TensorboardCallback
 from rich import print
+from utils import exploration_map_callback
 
 def make_env(rank, env_conf, seed=0):
     """
@@ -33,16 +34,18 @@ if __name__ == "__main__":
     parser.add_argument("--headless", action = "store_true")
     parser.add_argument("--n-envs", type=int, default=multiprocessing.cpu_count())
     parser.add_argument("--use-wandb-logging", action="store_true")
-    parser.add_argument("--ep-length", type=int, default = 16336)
+    parser.add_argument("--ep-length", type=int, default = 32672)
     parser.add_argument("--sess-id", type=str, default=str(uuid.uuid4())[:8])
     parser.add_argument("--save-video", action='store_true')
     parser.add_argument("--fast-video", action='store_true')
     parser.add_argument("--frame-stacks", type=int, default = 32)
     parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy")
-    parser.add_argument("--explore-weight", type=float, default = 128)
+    parser.add_argument("--explore-weight", type=float, default = 32)
     parser.add_argument("--reward-scale", type=float, default = 0.05)
     parser.add_argument("--seed", type=int, default = 42)
     parser.add_argument("--early_stop", action = "store_true")
+    parser.add_argument("--extra-buttons", action = "store_true")
+    parser.add_argument("--restricted-start-menu", action = "store_true")
    
     # Arguments 
     args = parser.parse_args()
@@ -73,18 +76,20 @@ if __name__ == "__main__":
         "explore_npc_weight": 1,  # 2.5
         "frame_stacks": args.frame_stacks,
         "policy": args.policy,
+        "restricted_start_menu": args.restricted_start_menu,
+        "extra_buttons": args.extra_buttons,
     }
 
     print(f"The environment config is: {env_config}")
     import os
-    num_cpu = os.cpu_count() // 2  # Also sets the number of episodes per training iteration
+    num_cpu = os.cpu_count() //2   # Also sets the number of episodes per training iteration
     env = SubprocVecEnv([make_env(i, env_config) for i in range(num_cpu)])
 
     checkpoint_callback = CheckpointCallback(save_freq=args.ep_length, 
                                              save_path=sess_path,
                                             name_prefix="poke")
 
-    callbacks = [checkpoint_callback, TensorboardCallback(sess_path)]
+    callbacks = [checkpoint_callback, TensorboardCallback(sess_path), exploration_map_callback()]
 
     if use_wandb_logging:
         import wandb
@@ -105,14 +110,12 @@ if __name__ == "__main__":
     # put a checkpoint here you want to start from
     file_name = "" #"session_9ff8e5f0/poke_21626880_steps"
     
-    n_steps = args.ep_length // 8
-    print(f"Learning for {n_steps} steps")
     
     
     if exists(file_name + ".zip"):
         print("\nloading checkpoint")
         model = PPO.load(file_name, env=env)
-        model.n_steps = n_steps
+        model.n_steps =args.ep_length 
         model.n_envs = num_cpu
         model.rollout_buffer.buffer_size = args.ep_length
         model.rollout_buffer.n_envs = num_cpu
@@ -120,17 +123,21 @@ if __name__ == "__main__":
     else:
         model = PPO( args.policy, 
                     env, verbose=1, 
-                    n_steps = n_steps , 
-                    batch_size=128, 
-                    n_epochs = 1    , 
+                    n_steps = args.ep_length,
+                    batch_size = 128, 
+                    n_epochs = 3    , 
                     gamma=0.998, 
                     tensorboard_log=sess_path , 
-                    seed = args.seed
+                    seed = args.seed,
+                    ent_coef = 0.01,
         )
 
     print(model.policy)
 
-    model.learn(total_timesteps=(args.ep_length)*num_cpu * 40, callback=CallbackList(callbacks), progress_bar=True, log_interval = 2)
+    model.learn(total_timesteps=(args.ep_length)*num_cpu * 40, 
+                callback=CallbackList(callbacks), 
+                progress_bar=True, 
+                log_interval = 2)
 
     if use_wandb_logging:
         run.finish()
