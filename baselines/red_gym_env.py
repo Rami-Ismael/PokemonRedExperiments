@@ -595,7 +595,7 @@ class RedGymEnv(Env):
             scaled = (sum_of_the_party_level - explore_threshould) / scale_factor + explore_threshould
         self.max_level_rew = max(self.max_level_rew, scaled)
         '''
-        return self.get_levels_sum() // 600
+        return self.get_levels_sum()
 
     def get_badges(self):
         return self.bit_count(self.read_m(0xD356))
@@ -630,8 +630,8 @@ class RedGymEnv(Env):
             "badge":  self.get_badges() * 5,
             "explore":  self.explore_weight * len(self.seen_coords) * 0.01,
             "seen_pokemon":  sum(self.seen_pokemon) * 0.00010,
-            "caught_pokemon":  sum(self.caught_pokemon) * 0.000020,
-            "moves_obtained":  sum(self.moves_obtained) * 0.000020,
+            "caught_pokemon":  sum(self.caught_pokemon) * 0.00020,
+            "moves_obtained":  sum(self.moves_obtained) * 0.00020,
             'visited_pokecenter': self.get_visited_pokecenter_reward(),
             'hm': self.get_hm_rewards(),
             'hm_move': self.get_hm_move_reward(),
