@@ -37,9 +37,7 @@ class RedGymEnv(Env):
         self.frame_stacks = config["frame_stacks"]
         self.extra_buttons = False if 'extra_buttons' not in config else config['extra_buttons']
         self.restricted_start_menu = False if 'restricted_start_menu' not in config else config['restricted_start_menu']
-        self.explore_weight = (
-            1 if "explore_weight" not in config else config["explore_weight"]
-        )
+        self.explore_weight = 1 if "explore_weight" not in config else config["explore_weight"]
         self.use_screen_explore = True if 'use_screen_explore' not in config else config['use_screen_explore']
         self.randomize_first_ep_split_cnt = 0 if 'randomize_first_ep_split_cnt' not in config else config['randomize_first_ep_split_cnt']
         self.similar_frame_dist = config['sim_frame_dist']
@@ -208,6 +206,8 @@ class RedGymEnv(Env):
         self.caught_pokemon = np.zeros(152, dtype=np.uint8)
         self.moves_obtained = np.zeros(0xA5, dtype=np.uint8)
         self.visited_pokecenter_list = []
+        self.visited_pokecenter = 0
+        self.init_caches() 
 
         self.base_event_flags = sum([
                 self.bit_count(self.read_m(i))
@@ -433,9 +433,10 @@ class RedGymEnv(Env):
 
     def append_agent_stats(self, action):
         x_pos, y_pos, map_n = self.get_game_coords()
-        levels = [
+        levels:list[int]  =[
             self.read_m(a) for a in [0xD18C, 0xD1B8, 0xD1E4, 0xD210, 0xD23C, 0xD268]
         ]
+        # This where the weight and bias stuff is stor
         self.agent_stats.append(
             {
                 "step": self.step_count,
@@ -451,7 +452,7 @@ class RedGymEnv(Env):
                 "ptypes": self.read_party(),
                 "hp": self.read_hp_fraction(),
                 "coord_count": len(self.seen_coords),
-                "deaths": self.died_count,
+                "deaths_count": self.died_count,
                 "badge": self.get_badges(),
                 "event": self.progress_reward["event"],
                 "healr": self.total_healing_rew,
@@ -676,7 +677,7 @@ class RedGymEnv(Env):
             for addr in [0xD164, 0xD165, 0xD166, 0xD167, 0xD168, 0xD169]
         ]
 
-    def get_all_events_reward(self):
+    def not_boey_get_all_events_reward(self):
         # adds up all event flags, exclude museum ticket
         return max(
             sum([
@@ -687,21 +688,63 @@ class RedGymEnv(Env):
             - int(self.read_bit(museum_ticket[0], museum_ticket[1])),
             0,
         )
-
-    def get_game_state_reward(self, print_stats=False):
+    def get_all_events_reward(self):
+        # adds up all event flags, exclude museum ticket
+        museum_ticket = (0xD754, 0)
+        base_event_flags = 13
+        return max(
+            self.all_events_string.count('1')
+            - base_event_flags
+            - int(self.read_bit(museum_ticket[0], museum_ticket[1])),
+        0,
+    )
+    @property
+    def all_events_string(self):
+        # cache all events string to improve performance
+        if not self._all_events_string:
+            event_flags_start = 0xD747
+            event_flags_end = 0xD886
+            result = ''
+            for i in range(event_flags_start, event_flags_end):
+                result += bin(self.read_m(i))[2:]  # .zfill(8)
+            self._all_events_string = result
+        return self._all_events_string
+    
+    @property
+    def battle_type(self):
+        if not self._battle_type:
+            result = self.read_m(0xD057)
+            if result == -1:
+                return 0
+            return result
+        return self._battle_type
+    
+    def is_wild_battle(self):
+        return self.battle_type == 1
+    
+    def update_max_event_rew(self):
+        cur_rew = self.get_all_events_reward()
+        self.max_event_rew = max(cur_rew, self.max_event_rew)
+        return self.max_event_rew
+    def init_caches(self):
+        # for cached properties
+        self._all_events_string = ''
+        self._battle_type = -999
+    def get_game_state_reward(self, print_stats=True):
         # addresses from https://datacrystal.romhacking.net/wiki/Pok%C3%A9mon_Red/Blue:RAM_map
         # https://github.com/pret/pokered/blob/91dc3c9f9c8fd529bb6e8307b58b96efa0bec67e/constants/event_constants.asm
+        self.max_event_rew = self.update_max_event_rew()
         state_scores = {
-            "event":  self.update_max_event_rew() * 3,
-            "level":  self.get_levels_reward(),
-            "heal":  self.total_healing_rew * 4,
-            "op_lvl":  self.update_max_op_level() * 0.2,
-            "dead":  self.died_count * -0.1,
-            "badge":  self.get_badges() * 5,
-            "explore":  len(self.seen_coords) * 0.01,
-            "seen_pokemon":  sum(self.seen_pokemon) * 0.00010,
-            "caught_pokemon":  sum(self.caught_pokemon) * 0.00020,
-            "moves_obtained":  sum(self.moves_obtained) * 0.00020,
+            "event":  self.update_max_event_rew(),
+            "level":  self.get_levels_reward() * 2,
+            "heal":  self.total_healing_rew,
+            "op_lvl":  self.update_max_op_level(),
+            "dead":  self.died_count ,
+            "badge":  self.get_badges() ,
+            "explore":  len(self.seen_coords)   * self.explore_weight,
+            "seen_pokemon":  sum(self.seen_pokemon) * 2 , 
+            "caught_pokemon":  ( sum(self.caught_pokemon) - 1 )  * 2  , 
+            "moves_obtained":   ( sum(self.moves_obtained) - 2 ) * 2  , 
             'visited_pokecenter': self.get_visited_pokecenter_reward(),
             'hm': self.get_hm_rewards(),
             'hm_move': self.get_hm_move_reward(),
@@ -730,7 +773,7 @@ class RedGymEnv(Env):
         )
         self.max_opponent_level = max(self.max_opponent_level, opponent_level)
         return self.max_opponent_level
-
+    
     def update_max_event_rew(self):
         cur_rew = self.get_all_events_reward()
         self.max_event_rew = max(cur_rew, self.max_event_rew)

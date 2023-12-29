@@ -5,7 +5,7 @@ import numpy as np
 from os.path import exists
 from pathlib import Path
 import uuid
-from red_gym_env import RedGymEnv
+from red_gym_env_v2 import RedGymEnv
 from stable_baselines3 import PPO
 from stable_baselines3.common import env_checker
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -38,14 +38,14 @@ if __name__ == "__main__":
     parser.add_argument("--headless", action = "store_true")
     parser.add_argument("--n-envs", type=int, default=multiprocessing.cpu_count())
     parser.add_argument("--use-wandb-logging", action="store_true")
-    parser.add_argument("--ep-length", type=int, default = 4096)
+    parser.add_argument("--ep-length", type=int, default = 2048)
     parser.add_argument("--sess-id", type=str, default=str(uuid.uuid4())[:8])
     parser.add_argument("--save-video", action='store_true')
     parser.add_argument("--fast-video", action='store_true')
-    parser.add_argument("--frame-stacks", type=int, default = 32)
+    parser.add_argument("--frame-stacks", type=int, default = 16)
     parser.add_argument("--policy", choices=["MultiInputPolicy", "CnnPolicy"], default="MultiInputPolicy")
-    parser.add_argument("--explore-weight", type=float, default = 32)
-    parser.add_argument("--reward-scale", type=float, default = 0.05)
+    parser.add_argument("--explore-weight", type=float, default = 16)
+    parser.add_argument("--reward-scale", type=float, default = 4)
     parser.add_argument("--seed", type=int, default = 42)
     parser.add_argument("--early_stop", action = "store_true")
     parser.add_argument("--extra-buttons", action = "store_true")
@@ -53,6 +53,11 @@ if __name__ == "__main__":
     parser.add_argument("--use_screen_explore", action = "store_false")
     parser.add_argument("--randomize-fist-ep-split-cnt", type=int, default = 0)
     parser.add_argument("--similar-frame-dist", type=int, default = 2_000_000.0)
+    ## PPO Algorithm specific
+    parser.add_argument("--batch-size", type=int, default = 64)
+    parser.add_argument("--ent-coef", type=float, default = 0.001)
+    parser.add_argument("--use-sde", action = "store_true")
+    # Hyperparameters
    
     # Arguments 
     args = parser.parse_args()
@@ -86,6 +91,7 @@ if __name__ == "__main__":
         "restricted_start_menu": args.restricted_start_menu,
         "extra_buttons": args.extra_buttons,
         "use_screen_explore": args.use_screen_explore,
+        
     }
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -131,19 +137,22 @@ if __name__ == "__main__":
         model.rollout_buffer.reset()
     else:
         model = PPO( args.policy, 
-                    env, verbose=1, 
+                    env, 
+                    verbose=1, 
                     n_steps = args.ep_length,
-                    batch_size = 128, 
-                    n_epochs = 3    , 
+                    batch_size = args.batch_size,
+                    n_epochs = 4    , 
                     gamma=0.998, 
                     tensorboard_log=sess_path , 
                     seed = args.seed,
-                    ent_coef = 0.01,
+                    ent_coef = args.ent_coef,
+                    use_sde = args.use_sde,
+                    
         )
 
     print(model.policy)
 
-    model.learn(total_timesteps=(args.ep_length)*num_cpu * 40, 
+    model.learn(total_timesteps=(args.ep_length)*num_cpu* 40,
                 callback=CallbackList(callbacks), 
                 progress_bar=True, 
                 log_interval = 2)
