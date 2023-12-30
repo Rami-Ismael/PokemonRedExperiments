@@ -10,3 +10,9 @@ _autoplay.mp4
 session_*
 .env
 PokemonRed.gb.state
+**png**
+**svg**
+**gif**
+**session**
+**wandb**
+**sqlite**
