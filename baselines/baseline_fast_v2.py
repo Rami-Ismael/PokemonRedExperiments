@@ -58,6 +58,8 @@ if __name__ == "__main__":
     parser.add_argument("--ent-coef", type=float, default = 0.001)
     parser.add_argument("--use-sde", action = "store_true")
     # Hyperparameters
+    # Reward Agent
+    parser.add_argument("--reward-for-money-amount", action="store_true")
    
     # Arguments 
     args = parser.parse_args()
@@ -91,6 +93,7 @@ if __name__ == "__main__":
         "restricted_start_menu": args.restricted_start_menu,
         "extra_buttons": args.extra_buttons,
         "use_screen_explore": args.use_screen_explore,
+        "reward_for_money_amount": args.reward_for_money_amount,
         
     }
     random.seed(args.seed)
@@ -152,7 +155,7 @@ if __name__ == "__main__":
 
     print(model.policy)
 
-    model.learn(total_timesteps=(args.ep_length)*num_cpu* 40,
+    model.learn(total_timesteps=(args.ep_length)*num_cpu* 80,
                 callback=CallbackList(callbacks), 
                 progress_bar=True, 
                 log_interval = 2)
