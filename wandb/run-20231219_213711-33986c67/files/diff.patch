@@ -1,0 +1,97 @@
+diff --git a/baselines/run_baseline_parallel.py b/baselines/run_baseline_parallel.py
+index f4423a3..eab365b 100644
+--- a/baselines/run_baseline_parallel.py
++++ b/baselines/run_baseline_parallel.py
+@@ -33,7 +33,7 @@ if __name__ == '__main__':
+                 'headless': True, 'save_final_state': True, 'early_stop': False,
+                 'action_freq': 24, 'init_state': '../has_pokedex_nballs.state', 'max_steps': ep_length, 
+                 'print_rewards': True, 'save_video': False, 'fast_video': True, 'session_path': sess_path,
+-                'gb_path': '../PokemonRed.gb', 'debug': False, 'sim_frame_dist': 2_000_000.0, 
++                'gb_path': 'PokemonRed.gb', 'debug': False, 'sim_frame_dist': 2_000_000.0, 
+                 'use_screen_explore': True, 'extra_buttons': False
+             }
+     
+@@ -45,7 +45,7 @@ if __name__ == '__main__':
+                                      name_prefix='poke')
+     #env_checker.check_env(env)
+     learn_steps = 40
+-    file_name = 'session_e41c9eff/poke_38207488_steps' #'session_e41c9eff/poke_250871808_steps'
++    file_name = 'baselines/session_e41c9eff/poke_38207488_steps' #'session_e41c9eff/poke_250871808_steps'
+     
+     #'session_bfdca25a/poke_42532864_steps' #'session_d3033abb/poke_47579136_steps' #'session_a17cc1f5/poke_33546240_steps' #'session_e4bdca71/poke_8945664_steps' #'session_eb21989e/poke_40255488_steps' #'session_80f70ab4/poke_58982400_steps'
+     if exists(file_name + '.zip'):
+diff --git a/baselines/run_baseline_parallel_fast.py b/baselines/run_baseline_parallel_fast.py
+index de82739..b11e5e2 100644
+--- a/baselines/run_baseline_parallel_fast.py
++++ b/baselines/run_baseline_parallel_fast.py
+@@ -1,3 +1,4 @@
++import os
+ from os.path import exists
+ from pathlib import Path
+ import uuid
+@@ -26,23 +27,23 @@ def make_env(rank, env_conf, seed=0):
+ 
+ if __name__ == '__main__':
+ 
+-    use_wandb_logging = False
++    use_wandb_logging = True
+     ep_length = 2048 * 10
+     sess_id = str(uuid.uuid4())[:8]
+     sess_path = Path(f'session_{sess_id}')
+ 
+     env_config = {
+                 'headless': True, 'save_final_state': True, 'early_stop': False,
+-                'action_freq': 24, 'init_state': '../has_pokedex_nballs.state', 'max_steps': ep_length, 
++                'action_freq': 24, 'init_state': 'has_pokedex_nballs.state', 'max_steps': ep_length, 
+                 'print_rewards': True, 'save_video': False, 'fast_video': True, 'session_path': sess_path,
+-                'gb_path': '../PokemonRed.gb', 'debug': False, 'sim_frame_dist': 2_000_000.0, 
++                'gb_path': 'PokemonRed.gb', 'debug': False, 'sim_frame_dist': 2_000_000.0, 
+                 'use_screen_explore': True, 'reward_scale': 4, 'extra_buttons': False,
+                 'explore_weight': 3 # 2.5
+             }
+     
+     print(env_config)
+     
+-    num_cpu = 16  # Also sets the number of episodes per training iteration
++    num_cpu = os.cpu_count() // 2  # Also sets the number of episodes per training iteration
+     env = SubprocVecEnv([make_env(i, env_config) for i in range(num_cpu)])
+     
+     checkpoint_callback = CheckpointCallback(save_freq=ep_length, save_path=sess_path,
+diff --git a/baselines/run_pretrained_interactive.py b/baselines/run_pretrained_interactive.py
+index 2c26713..64148f2 100644
+--- a/baselines/run_pretrained_interactive.py
++++ b/baselines/run_pretrained_interactive.py
+@@ -1,3 +1,4 @@
++import os
+ from os.path import exists
+ from pathlib import Path
+ import uuid
+@@ -7,6 +8,7 @@ from stable_baselines3.common import env_checker
+ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+ from stable_baselines3.common.utils import set_random_seed
+ from stable_baselines3.common.callbacks import CheckpointCallback
++from rich import print
+ 
+ def make_env(rank, env_conf, seed=0):
+     """
+@@ -30,16 +32,17 @@ if __name__ == '__main__':
+ 
+     env_config = {
+                 'headless': False, 'save_final_state': True, 'early_stop': False,
+-                'action_freq': 24, 'init_state': '../has_pokedex_nballs.state', 'max_steps': ep_length, 
++                'action_freq': 24, 'init_state': 'has_pokedex_nballs.state', 'max_steps': ep_length, 
+                 'print_rewards': True, 'save_video': False, 'fast_video': True, 'session_path': sess_path,
+-                'gb_path': '../PokemonRed.gb', 'debug': False, 'sim_frame_dist': 2_000_000.0, 'extra_buttons': True
++                'gb_path': 'PokemonRed.gb', 'debug': False, 'sim_frame_dist': 2_000_000.0, 'extra_buttons': True
+             }
+     
+     num_cpu = 1 #64 #46  # Also sets the number of episodes per training iteration
+     env = make_env(0, env_config)() #SubprocVecEnv([make_env(i, env_config) for i in range(num_cpu)])
++    print(os.getcwd())
+     
+     #env_checker.check_env(env)
+-    file_name = 'session_4da05e87_main_good/poke_439746560_steps'
++    file_name = 'baselines/session_4da05e87_main_good/poke_439746560_steps'
+     
+     print('\nloading checkpoint')
+     model = PPO.load(file_name, env=env, custom_objects={'lr_schedule': 0, 'clip_range': 0})
