@@ -36,6 +36,7 @@ class RedGymEnv(Env):
         self.explore_weight = config["explore_weight"]
         self.explore_npc_weight = config["explore_npc_weight"]
         self.reward_scale = config["reward_scale"]
+        self.reward_for_money_amount = config["reward_for_money_amount"]
         self.instance_id = (
             str(uuid.uuid4())[:8]
             if "instance_id" not in config
@@ -320,7 +321,7 @@ class RedGymEnv(Env):
 
         if self.save_video and self.fast_video:
             self.add_video_frame()
-
+    # Environment Statistics 
     def append_agent_stats(self, action):
         x_pos, y_pos, map_n = self.get_game_coords()
         levels = [
@@ -335,7 +336,7 @@ class RedGymEnv(Env):
                 "map_location": self.get_map_location(map_n),
                 "max_map_progress": self.max_map_progress,
                 "last_action": action,
-                "pcount": self.read_m(0xD163),
+                "party_count": self.read_m(0xD163),
                 "levels": levels,
                 "levels_sum": sum(levels),
                 "ptypes": self.read_party(),
@@ -346,7 +347,8 @@ class RedGymEnv(Env):
                 "badge": self.get_badges(),
                 "event": self.progress_reward["event"],
                 "healr": self.total_healing_rew,
-                "action_hist": self.action_hist
+                "action_hist": self.action_hist,
+                "money": self.read_money(),
             }
         )
 
@@ -589,6 +591,10 @@ class RedGymEnv(Env):
             "explore": self.reward_scale * self.explore_weight * len(self.seen_coords) * 0.005,
             "explore_npcs": self.reward_scale * self.explore_npc_weight * len(self.seen_npcs) * 0.010,
         }
+        if self.reward_for_money_amount:
+            state_scores["money"] = self.reward_scale * self.normalize_money()
+            isinstance(state_scores["money"], float)
+            assert len(state_scores.keys()) == 9
 
         return state_scores
 
@@ -650,6 +656,12 @@ class RedGymEnv(Env):
             return self.essential_map_locations[map_idx]
         else:
             return -1
+    def read_bcd(self, num):
+        return 10 * ((num >> 4) & 0x0f) + (num & 0x0f)
+    def read_money(self)->int:
+        return ( 100.0 * 100 * self.read_bcd(self.read_m(0xD347)) ) + ( 100.0 * self.read_bcd(self.read_m(0xD348)) )  + self.read_bcd(self.read_m(0xD349))
+    def normalize_money(self)->float:
+        return self.read_money() / 999999.0
 
     def get_map_location(self, map_idx):
         map_locations = {
